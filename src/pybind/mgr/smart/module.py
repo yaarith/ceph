@@ -8,8 +8,6 @@ from mgr_module import MgrModule, CommandResult
 import rados
 import time
 
-OBJECT_NAME = "mytest"
-ITER = 2
 pool_name = "smart_data"
 
 
