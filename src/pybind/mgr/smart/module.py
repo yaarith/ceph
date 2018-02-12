@@ -12,6 +12,7 @@ OBJECT_NAME = "mytest"
 ITER = 2
 pool_name = "smart_data"
 
+
 class Module(MgrModule):
     COMMANDS = [
         {
@@ -78,7 +79,7 @@ class Module(MgrModule):
 
     def handle_osd_smart_scrape(self, osd_id):
         ioctx = self.open_connection()
-        self.do_osd_smart_scrape(osd_id, ioctx);
+        self.do_osd_smart_scrape(osd_id, ioctx)
         ioctx.close()
         return (0, "", "")
 
@@ -90,7 +91,7 @@ class Module(MgrModule):
             'format': 'json',
         }), '')
         r, outb, outs = result.wait()
-        smart_data = json.load(bytes(outb))
+        smart_data = json.loads(outb)
 
         osd_host = self.get_metadata('osd', osd_id)['hostname']
         self.log.debug('osd host %s' % osd_host)
@@ -101,9 +102,9 @@ class Module(MgrModule):
                 # TODO should we change second arg to be byte?
                 # TODO what about the flag in ioctx.operate_write_op()?
                 now = str(time.time())
-                ioctx.set_omap(op, now, (str(json.dumps(device_smart_data)),))
+                ioctx.set_omap(op, (now,), (str(json.dumps(device_smart_data)),))
                 ioctx.operate_write_op(op, object_name)
-                self.log.debug('writing object %s, key: %s, value: %s' % object_name, now, str(json.dumps(device_smart_data)))
+                self.log.debug('writing object %s, key: %s, value: %s' % (object_name, now, str(json.dumps(device_smart_data))))
 
         return (0, "do osd scrape", "test")
 
