@@ -225,22 +225,30 @@ class Module(MgrModule):
             ioctx.operate_write_op(op, devid)
 
     def show_device_metrics(self, devid, sample):
+        # verify device exists
+        r = self.get("device " + devid)
+        if not r or 'device' not in r.keys():
+            return (-errno.ENOENT, '', 'device ' + devid + ' not found')
+        # fetch metrics
         ioctx = self.open_connection()
         res = {}
         with rados.ReadOpCtx() as op:
             iter, ret = ioctx.get_omap_vals(op, "", sample or '', 500) # fixme
             assert ret == 0
-            ioctx.operate_read_op(op, devid)
-            for key, value in list(iter):
-                if sample and key != sample:
-                    break
-                try:
-                    v = json.loads(value)
-                except:
-                    self.log.debug('unable to parse value for %s: "%s"' %
-                                   (key, value))
-                    pass
-                res[key] = v
+            try:
+                ioctx.operate_read_op(op, devid)
+                for key, value in list(iter):
+                    if sample and key != sample:
+                        break
+                    try:
+                        v = json.loads(value)
+                    except:
+                        self.log.debug('unable to parse value for %s: "%s"' %
+                                       (key, value))
+                        pass
+                    res[key] = v
+            except:
+                pass
         return (0, json.dumps(res, indent=4), '')
 
     def extract_smart_features(self, raw):
