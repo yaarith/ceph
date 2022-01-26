@@ -8,6 +8,7 @@ import logging
 import numbers
 import enum
 import errno
+import gzip
 import hashlib
 import json
 import rbd
@@ -1091,12 +1092,16 @@ class Module(MgrModule):
     def _try_post(self, what: str, url: str, report: Dict[str, Dict[str, str]]) -> Optional[str]:
         self.log.info('Sending %s to: %s' % (what, url))
         proxies = dict()
+        headers = dict()
         if self.proxy:
             self.log.info('Send using HTTP(S) proxy: %s', self.proxy)
             proxies['http'] = self.proxy
             proxies['https'] = self.proxy
         try:
-            resp = requests.put(url=url, json=report, proxies=proxies)
+            headers['Content-Encoding'] = 'gzip'
+            headers['Content-Type'] = 'application/json'
+            report = gzip.compress(json.dumps(report).encode('utf-8'))
+            resp = requests.put(url=url, data=report, proxies=proxies, headers=headers)
             resp.raise_for_status()
         except Exception as e:
             fail_reason = 'Failed to send %s to %s: %s' % (what, url, str(e))
