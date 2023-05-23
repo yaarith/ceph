@@ -47,34 +47,6 @@ reports_header = {
     "events": []
 }
 
-# TODO: report functions providing the json paylod should be imported from the data collectors module
-
-
-def report_inventory() -> str:
-    """
-    Produce the inventory report
-    """
-    dt = datetime.timestamp(datetime.now())
-    # Set timestamps
-    reports_header['event_time'] = datetime.fromtimestamp(dt).strftime("%Y-%m-%d %H:%M:%S")
-    reports_header['event_time_ms'] = str(int(dt))
-    reports_header['local_event_time'] = datetime.fromtimestamp(dt).strftime("%a %b %d %H:%M:%S %Z")
-
-    # Set event id
-    reports_header['event_id'] = "IBM_chc_event_RedHatMarine_ceph_{}_daily_report_{}".format(
-                                            reports_header['asset_virtual_id'],
-                                            reports_header['event_time_ms'])
-
-    # return json.dumps({**reports_header, **inventory()}) <---- TODO ADD INVENTORY (from datacollector) as event
-    return json.dumps(reports_header)
-
-
-def report_performance() -> str:
-    """
-    TODO: temporally uses inventory report
-    """
-    return report_inventory()
-
 
 class Report:
     def __init__(self, name: str, fn: Callable[[], str], url: str, minutes_interval: int):
@@ -164,12 +136,12 @@ class CallHomeAgent(MgrModule):
         self._configure_headers()
 
         # Prepare reports
-        self.reports = {'inventory': Report('inventory', report_inventory,
+        self.reports = {'inventory': Report('inventory', self.report_inventory,
                                             self.ches_url,
-                                            self.interval_performance_minutes),
-                        'performance': Report('performance', report_performance,
+                                            self.interval_inventory_minutes),
+                        'performance': Report('performance', self.report_performance,
                                               self.ches_url,
-                                              self.interval_inventory_minutes)
+                                              self.interval_performance_minutes)
                         }
 
     async def report_task(self, rpt: Report) -> None:
@@ -281,6 +253,34 @@ class CallHomeAgent(MgrModule):
         reports_header['analytics_instance'] = cluster_config['fsid']
         reports_header['analytics_virtual_id'] = cluster_config['fsid']
 
+    def report_inventory(self) -> str:
+        """
+        Produce the inventory report
+        """
+        dt = datetime.timestamp(datetime.now())
+        # Set timestamps
+        reports_header['event_time'] = datetime.fromtimestamp(dt).strftime("%Y-%m-%d %H:%M:%S")
+        reports_header['event_time_ms'] = str(int(dt))
+        reports_header['local_event_time'] = datetime.fromtimestamp(dt).strftime("%a %b %d %H:%M:%S %Z")
+
+        # Set event id
+        reports_header['event_id'] = "IBM_chc_event_RedHatMarine_ceph_{}_daily_report_{}".format(
+                                                reports_header['asset_virtual_id'],
+                                                reports_header['event_time_ms'])
+
+        try:
+            inventory = self.remote('collect', 'get_inventory')
+        except Exception as e:
+            self.log.error(f"Failed to get cluster inventory: {str(ex)}")
+
+        return json.dumps({**reports_header, **inventory}, indent=4, sort_keys=True)
+
+    def report_performance(self) -> str:
+        """
+        TODO: temporally uses inventory report
+        """
+        return self.report_inventory()
+
     def alert_worker(self, alerts: str) -> None:
         """
             TODO:
@@ -295,7 +295,7 @@ class CallHomeAgent(MgrModule):
                 ceph callhome print report inventory
             Available reports: inventory
         """
-        return HandleCommandResult(stdout=f'report:, {self.reports[report_name].print()}')
+        return HandleCommandResult(stdout=f'{self.reports[report_name].print()}')
 
     @CLIReadCommand('callhome send report')
     def send_report_cmd(self, report_name: str) -> Tuple[int, str, str]:
@@ -319,4 +319,3 @@ class CallHomeAgent(MgrModule):
                   it calls ccha.alertWorker
             - start web server
         """
-
